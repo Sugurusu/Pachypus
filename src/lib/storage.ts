@@ -127,7 +127,10 @@ export function usePortfolioStore() {
           if (!existingLot) return current;
 
           const currentLotPlants = current.plants.filter((plant) => plant.lotId === lotId);
-          const quantity = Math.max(Number(input.quantity) || 1, currentLotPlants.length || 1);
+          const salePlantIds = new Set(current.sales.map((sale) => sale.plantId));
+          const lockedPlants = currentLotPlants.filter((plant) => ["売却済", "入金済"].includes(plant.status) || salePlantIds.has(plant.id));
+          const minimumQuantity = Math.max(lockedPlants.length, 1);
+          const quantity = Math.max(Number(input.quantity) || minimumQuantity, minimumQuantity);
           const unitCost = quantity > 0 ? (Number(input.totalPurchaseCost) || 0) / quantity : 0;
           const updatedLot: Lot = {
             ...existingLot,
@@ -141,13 +144,19 @@ export function usePortfolioStore() {
             const match = plant.plantCode.match(/PACHY-(\d+)/);
             return match ? Math.max(max, Number(match[1])) : max;
           }, 0);
-          const additionalCount = Math.max(quantity - currentLotPlants.length, 0);
+          const excessCount = Math.max(currentLotPlants.length - quantity, 0);
+          const removablePlants = currentLotPlants
+            .filter((plant) => !lockedPlants.some((lockedPlant) => lockedPlant.id === plant.id))
+            .sort((a, b) => b.plantCode.localeCompare(a.plantCode));
+          const removedPlantIds = new Set(removablePlants.slice(0, excessCount).map((plant) => plant.id));
+          const remainingLotPlantCount = currentLotPlants.length - removedPlantIds.size;
+          const additionalCount = Math.max(quantity - remainingLotPlantCount, 0);
           const generatedPlants: Plant[] = Array.from({ length: additionalCount }).map((_, index) => {
             const plantCode = `PACHY-${String(maxPlantNumber + index + 1).padStart(3, "0")}`;
             return calculatePlantProfit({
               id: uid("plant"),
               plantCode,
-              name: `${updatedLot.name} ${currentLotPlants.length + index + 1}`,
+              name: `${updatedLot.name} ${remainingLotPlantCount + index + 1}`,
               lotId: updatedLot.id,
               purchaseDate: updatedLot.purchaseDate,
               supplier: updatedLot.supplier,
@@ -178,24 +187,29 @@ export function usePortfolioStore() {
             });
           });
 
-          const updatedPlants = current.plants.map((plant) =>
-            plant.lotId === lotId
-              ? calculatePlantProfit({
-                  ...plant,
-                  purchaseDate: updatedLot.purchaseDate,
-                  supplier: updatedLot.supplier,
-                  originCountry: updatedLot.originCountry,
-                  purchaseCost: updatedLot.unitCost,
-                  updatedAt: timestamp
-                })
-              : plant
-          );
+          const updatedPlants = current.plants
+            .filter((plant) => !removedPlantIds.has(plant.id))
+            .map((plant) =>
+              plant.lotId === lotId
+                ? calculatePlantProfit({
+                    ...plant,
+                    purchaseDate: updatedLot.purchaseDate,
+                    supplier: updatedLot.supplier,
+                    originCountry: updatedLot.originCountry,
+                    purchaseCost: updatedLot.unitCost,
+                    updatedAt: timestamp
+                  })
+                : plant
+            );
           const plantsWithGenerated = [...updatedPlants, ...generatedPlants];
+          const removedText = removedPlantIds.size > 0 ? `。未販売個体 ${removedPlantIds.size}本を削除` : "";
 
           return {
             ...current,
             lots: current.lots.map((lot) => (lot.id === lotId ? updatedLot : lot)),
             plants: plantsWithGenerated,
+            expenses: current.expenses.filter((expense) => !removedPlantIds.has(expense.plantId)),
+            documents: current.documents.filter((document) => !removedPlantIds.has(document.plantId)),
             sales: current.sales.map((sale) => {
               const plant = plantsWithGenerated.find((item) => item.id === sale.plantId);
               return plant?.lotId === lotId ? calculateSaleProfit({ ...sale, updatedAt: timestamp }, plant) : sale;
@@ -206,7 +220,7 @@ export function usePortfolioStore() {
                 type: "仕入",
                 plantId: "",
                 lotId,
-                description: `${updatedLot.name} の仕入れ情報を更新`,
+                description: `${updatedLot.name} の仕入れ情報を更新${removedText}`,
                 date: updatedLot.purchaseDate,
                 createdAt: timestamp
               },

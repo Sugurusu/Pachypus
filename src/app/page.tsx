@@ -695,6 +695,7 @@ function LotsView({
         {data.lots.map((lot) => {
           const plants = data.plants.filter((plant) => plant.lotId === lot.id);
           const sold = plants.filter((plant) => ["売却済", "入金済"].includes(plant.status)).length;
+          const minimumQuantity = Math.max(sold, 1);
           const profit = plants.reduce((sum, plant) => sum + plant.netProfit, 0);
           const isEditing = editingLotId === lot.id;
           return (
@@ -704,7 +705,7 @@ function LotsView({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-black">ロットを編集</p>
-                      <p className="mt-1 text-sm text-sumi/65">総仕入額を変えると、1本あたり原価と個体利益も更新されます。</p>
+                      <p className="mt-1 text-sm text-sumi/65">本数を減らすと、未販売の個体から削除されます。売却済みの個体は履歴として残ります。</p>
                     </div>
                     <Badge>{yen(editForm.totalPurchaseCost / Math.max(editForm.quantity, 1))} / 本</Badge>
                   </div>
@@ -714,9 +715,10 @@ function LotsView({
                     <Field label="仕入先"><Input value={editForm.supplier} onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })} /></Field>
                     <Field label="原産国"><Input value={editForm.originCountry} onChange={(e) => setEditForm({ ...editForm, originCountry: e.target.value })} /></Field>
                     <Field label="総仕入額"><Input type="number" min="0" inputMode="numeric" value={editForm.totalPurchaseCost} onChange={(e) => setEditForm({ ...editForm, totalPurchaseCost: Number(e.target.value) })} /></Field>
-                    <Field label="仕入本数"><Input type="number" min={plants.length || 1} inputMode="numeric" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })} /></Field>
+                    <Field label="仕入本数"><Input type="number" min={minimumQuantity} inputMode="numeric" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })} /></Field>
                     <Field label="書類確認"><Select value={editForm.documentStatus} onChange={(e) => setEditForm({ ...editForm, documentStatus: e.target.value as DocumentCheckStatus })}>{documentStatuses.map((status) => <option key={status}>{status}</option>)}</Select></Field>
                   </div>
+                  {minimumQuantity > 1 ? <p className="text-xs text-sumi/60">販売済みが {sold}本あるため、{minimumQuantity}本未満にはできません。</p> : null}
                   <Field label="輸入経路"><Input value={editForm.importRoute} onChange={(e) => setEditForm({ ...editForm, importRoute: e.target.value })} /></Field>
                   <Field label="メモ"><Textarea value={editForm.memo} onChange={(e) => setEditForm({ ...editForm, memo: e.target.value })} /></Field>
                   <div className="grid gap-2 sm:grid-cols-2">
