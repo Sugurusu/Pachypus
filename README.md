@@ -34,14 +34,15 @@ git push -u origin main
 
 ### Web 公開する
 
-このアプリは Next.js のため、GitHub Pages より `Vercel` 公開が向いています。
+このリポジトリは GitHub Pages で公開できます。`main` ブランチに push すると、GitHub Actions が自動で静的サイトを書き出して公開します。
 
-1. GitHub にこのリポジトリを push
-2. Vercel で GitHub 連携
-3. `Import Project` からこの repo を選択
-4. そのままデプロイ
+公開URL:
 
-公開後は URL を共有できます。
+```text
+https://sugurusu.github.io/Pachypus/
+```
+
+Vercel に移す場合も、このまま GitHub リポジトリを import すれば動きます。
 
 ## 実装済み
 
