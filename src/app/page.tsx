@@ -566,10 +566,23 @@ function Garden({
           <p className="font-black">保有している庭</p>
           <p className="text-sm text-bone/70">販売中は金の縁取り、枯死はグレー表示</p>
         </div>
-        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div
+          className="relative grid min-h-[320px] grid-cols-2 gap-4 overflow-hidden p-4 sm:grid-cols-3 lg:grid-cols-5"
+          style={{
+            backgroundImage:
+              "linear-gradient(180deg, rgba(20,23,18,0.16), rgba(251,250,246,0.92) 46%, rgba(243,240,232,0.98)), url('pachypus-shelf.jpg')",
+            backgroundPosition: "center 36%",
+            backgroundSize: "cover"
+          }}
+        >
+          <div className="pointer-events-none absolute inset-x-0 bottom-16 h-4 bg-[#8a6848]/70 shadow-[0_18px_28px_rgba(20,23,18,0.22)]" />
           {gardenPlants.map((plant) => (
-            <button key={plant.id} onClick={() => onSelect(plant)} className="rounded-lg border border-stone bg-bone p-3 text-center transition hover:-translate-y-1 hover:border-moss">
-              <PlantMark status={plant.status} />
+            <button
+              key={plant.id}
+              onClick={() => onSelect(plant)}
+              className="relative rounded-lg border border-stone bg-bone/95 p-4 text-center shadow-soft backdrop-blur-sm transition hover:-translate-y-1 hover:border-moss"
+            >
+              <PlantMark status={plant.status} className="h-36 w-28" />
               <p className="mt-3 font-black">{plant.plantCode}</p>
               <StatusBadge status={plant.status} />
             </button>
@@ -577,15 +590,26 @@ function Garden({
         </div>
       </Card>
       <Card className="overflow-hidden">
-        <div className="border-b border-stone bg-ink px-5 py-4 text-bone">
-          <p className="font-black">販売履歴の棚</p>
-          <p className="text-sm text-bone/70">売却済み個体は小さな記念鉢として残る</p>
+        <div className="border-b border-stone bg-ink px-5 py-4 text-bone sm:flex sm:items-end sm:justify-between">
+          <div>
+            <p className="font-black">販売履歴の棚</p>
+            <p className="text-sm text-bone/70">売却済み個体は販売実績として棚に残る</p>
+          </div>
+          <p className="mt-2 text-2xl font-black tabular-nums sm:mt-0">{soldPlants.length}本 SOLD</p>
         </div>
-        <div className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-6 lg:grid-cols-10">
+        <div className="relative grid min-h-[220px] grid-cols-2 gap-4 bg-[#171815] p-4 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="pointer-events-none absolute inset-x-0 top-24 h-3 bg-[#6f5038]" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-10 h-3 bg-[#6f5038]" />
           {soldPlants.map((plant) => (
-            <button key={plant.id} onClick={() => onSelect(plant)} className="rounded-md border border-stone bg-washi p-3 text-center">
-              <PlantMark status={plant.status} className="h-16 w-14" />
-              <p className="mt-2 text-xs font-black">{plant.plantCode}</p>
+            <button
+              key={plant.id}
+              onClick={() => onSelect(plant)}
+              className="relative rounded-md border border-[#b99a5b]/60 bg-[#f4f0e7] p-3 text-center shadow-[0_18px_32px_rgba(0,0,0,0.28)] transition hover:-translate-y-1"
+            >
+              <div className="absolute right-2 top-2 rounded-full bg-ink px-2 py-1 text-[10px] font-black text-bone">SOLD</div>
+              <PlantMark status={plant.status} className="h-24 w-20" />
+              <p className="mt-2 text-sm font-black">{plant.plantCode}</p>
+              <p className="text-xs font-bold text-leaf">{yen(plant.actualSalePrice)}</p>
             </button>
           ))}
         </div>
