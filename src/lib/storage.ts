@@ -120,6 +120,101 @@ export function usePortfolioStore() {
           };
         });
       },
+      updateLot(lotId: string, input: Pick<Lot, "name" | "purchaseDate" | "supplier" | "originCountry" | "importRoute" | "totalPurchaseCost" | "quantity" | "documentStatus" | "memo">) {
+        const timestamp = nowIso();
+        setData((current) => {
+          const existingLot = current.lots.find((lot) => lot.id === lotId);
+          if (!existingLot) return current;
+
+          const currentLotPlants = current.plants.filter((plant) => plant.lotId === lotId);
+          const quantity = Math.max(Number(input.quantity) || 1, currentLotPlants.length || 1);
+          const unitCost = quantity > 0 ? (Number(input.totalPurchaseCost) || 0) / quantity : 0;
+          const updatedLot: Lot = {
+            ...existingLot,
+            ...input,
+            quantity,
+            unitCost,
+            updatedAt: timestamp
+          };
+
+          const maxPlantNumber = current.plants.reduce((max, plant) => {
+            const match = plant.plantCode.match(/PACHY-(\d+)/);
+            return match ? Math.max(max, Number(match[1])) : max;
+          }, 0);
+          const additionalCount = Math.max(quantity - currentLotPlants.length, 0);
+          const generatedPlants: Plant[] = Array.from({ length: additionalCount }).map((_, index) => {
+            const plantCode = `PACHY-${String(maxPlantNumber + index + 1).padStart(3, "0")}`;
+            return calculatePlantProfit({
+              id: uid("plant"),
+              plantCode,
+              name: `${updatedLot.name} ${currentLotPlants.length + index + 1}`,
+              lotId: updatedLot.id,
+              purchaseDate: updatedLot.purchaseDate,
+              supplier: updatedLot.supplier,
+              originCountry: updatedLot.originCountry,
+              purchaseCost: updatedLot.unitCost,
+              expectedSalePrice: updatedLot.unitCost * 2.5,
+              actualSalePrice: 0,
+              status: "在庫",
+              imageUrl: "",
+              width: "",
+              height: "",
+              rootingStatus: "未発根",
+              conditionMemo: "",
+              location: "",
+              sellerAgent: "",
+              commissionRate: 0,
+              commissionAmount: 0,
+              otherCost: 0,
+              grossProfit: 0,
+              netProfit: 0,
+              profitMargin: 0,
+              saleDate: "",
+              paymentDate: "",
+              buyerMemo: "",
+              memo: "",
+              createdAt: timestamp,
+              updatedAt: timestamp
+            });
+          });
+
+          const updatedPlants = current.plants.map((plant) =>
+            plant.lotId === lotId
+              ? calculatePlantProfit({
+                  ...plant,
+                  purchaseDate: updatedLot.purchaseDate,
+                  supplier: updatedLot.supplier,
+                  originCountry: updatedLot.originCountry,
+                  purchaseCost: updatedLot.unitCost,
+                  updatedAt: timestamp
+                })
+              : plant
+          );
+          const plantsWithGenerated = [...updatedPlants, ...generatedPlants];
+
+          return {
+            ...current,
+            lots: current.lots.map((lot) => (lot.id === lotId ? updatedLot : lot)),
+            plants: plantsWithGenerated,
+            sales: current.sales.map((sale) => {
+              const plant = plantsWithGenerated.find((item) => item.id === sale.plantId);
+              return plant?.lotId === lotId ? calculateSaleProfit({ ...sale, updatedAt: timestamp }, plant) : sale;
+            }),
+            activityLogs: [
+              {
+                id: uid("activity"),
+                type: "仕入",
+                plantId: "",
+                lotId,
+                description: `${updatedLot.name} の仕入れ情報を更新`,
+                date: updatedLot.purchaseDate,
+                createdAt: timestamp
+              },
+              ...current.activityLogs
+            ]
+          };
+        });
+      },
       upsertPlant(input: Plant) {
         const timestamp = nowIso();
         const plant = calculatePlantProfit({ ...input, updatedAt: timestamp });

@@ -238,7 +238,7 @@ export default function Home() {
           />
         ) : null}
 
-        {activeTab === "lots" ? <LotsView data={data} onAdd={actions.addLot} /> : null}
+        {activeTab === "lots" ? <LotsView data={data} onAdd={actions.addLot} onUpdate={actions.updateLot} /> : null}
         {activeTab === "sale" ? <SaleForm plants={availablePlants} onAdd={actions.addSale} /> : null}
         {activeTab === "expense" ? <ExpenseForm plants={data.plants} lots={data.lots} expenses={data.expenses} onAdd={actions.addExpense} onUpdateExpense={actions.updateExpense} onDeleteExpense={actions.deleteExpense} /> : null}
         {activeTab === "documents" ? <DocumentsView data={data} onUpdate={actions.updateDocument} /> : null}
@@ -634,8 +634,17 @@ function PlantsView({
   );
 }
 
-function LotsView({ data, onAdd }: { data: ReturnType<typeof usePortfolioStore>["data"]; onAdd: ReturnType<typeof usePortfolioStore>["actions"]["addLot"] }) {
+function LotsView({
+  data,
+  onAdd,
+  onUpdate
+}: {
+  data: ReturnType<typeof usePortfolioStore>["data"];
+  onAdd: ReturnType<typeof usePortfolioStore>["actions"]["addLot"];
+  onUpdate: ReturnType<typeof usePortfolioStore>["actions"]["updateLot"];
+}) {
   const [open, setOpen] = useState(false);
+  const [editingLotId, setEditingLotId] = useState("");
   const [form, setForm] = useState({
     name: "",
     purchaseDate: new Date().toISOString().slice(0, 10),
@@ -647,6 +656,22 @@ function LotsView({ data, onAdd }: { data: ReturnType<typeof usePortfolioStore>[
     documentStatus: "未確認" as DocumentCheckStatus,
     memo: ""
   });
+  const [editForm, setEditForm] = useState(form);
+
+  function startLotEdit(lot: ReturnType<typeof usePortfolioStore>["data"]["lots"][number]) {
+    setEditingLotId(lot.id);
+    setEditForm({
+      name: lot.name,
+      purchaseDate: lot.purchaseDate,
+      supplier: lot.supplier,
+      originCountry: lot.originCountry,
+      importRoute: lot.importRoute,
+      totalPurchaseCost: lot.totalPurchaseCost,
+      quantity: lot.quantity,
+      documentStatus: lot.documentStatus,
+      memo: lot.memo
+    });
+  }
 
   return (
     <div className="grid gap-6">
@@ -671,21 +696,64 @@ function LotsView({ data, onAdd }: { data: ReturnType<typeof usePortfolioStore>[
           const plants = data.plants.filter((plant) => plant.lotId === lot.id);
           const sold = plants.filter((plant) => ["売却済", "入金済"].includes(plant.status)).length;
           const profit = plants.reduce((sum, plant) => sum + plant.netProfit, 0);
+          const isEditing = editingLotId === lot.id;
           return (
             <Card key={lot.id} className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-black">{lot.name}</p>
-                  <p className="mt-1 text-sm text-sumi/65">{lot.supplier} / {lot.originCountry}</p>
+              {isEditing ? (
+                <div className="grid gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black">ロットを編集</p>
+                      <p className="mt-1 text-sm text-sumi/65">総仕入額を変えると、1本あたり原価と個体利益も更新されます。</p>
+                    </div>
+                    <Badge>{yen(editForm.totalPurchaseCost / Math.max(editForm.quantity, 1))} / 本</Badge>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="ロット名"><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></Field>
+                    <Field label="仕入日"><Input type="date" value={editForm.purchaseDate} onChange={(e) => setEditForm({ ...editForm, purchaseDate: e.target.value })} /></Field>
+                    <Field label="仕入先"><Input value={editForm.supplier} onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })} /></Field>
+                    <Field label="原産国"><Input value={editForm.originCountry} onChange={(e) => setEditForm({ ...editForm, originCountry: e.target.value })} /></Field>
+                    <Field label="総仕入額"><Input type="number" min="0" inputMode="numeric" value={editForm.totalPurchaseCost} onChange={(e) => setEditForm({ ...editForm, totalPurchaseCost: Number(e.target.value) })} /></Field>
+                    <Field label="仕入本数"><Input type="number" min={plants.length || 1} inputMode="numeric" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })} /></Field>
+                    <Field label="書類確認"><Select value={editForm.documentStatus} onChange={(e) => setEditForm({ ...editForm, documentStatus: e.target.value as DocumentCheckStatus })}>{documentStatuses.map((status) => <option key={status}>{status}</option>)}</Select></Field>
+                  </div>
+                  <Field label="輸入経路"><Input value={editForm.importRoute} onChange={(e) => setEditForm({ ...editForm, importRoute: e.target.value })} /></Field>
+                  <Field label="メモ"><Textarea value={editForm.memo} onChange={(e) => setEditForm({ ...editForm, memo: e.target.value })} /></Field>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
+                      onClick={() => {
+                        onUpdate(lot.id, editForm);
+                        setEditingLotId("");
+                      }}
+                    >
+                      保存
+                    </Button>
+                    <GhostButton onClick={() => setEditingLotId("")}>戻す</GhostButton>
+                  </div>
                 </div>
-                <Badge>{lot.documentStatus}</Badge>
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <div><p className="text-sumi/55">総仕入額</p><p className="font-bold">{yen(lot.totalPurchaseCost)}</p></div>
-                <div><p className="text-sumi/55">本数</p><p className="font-bold">{lot.quantity}本</p></div>
-                <div><p className="text-sumi/55">売却済</p><p className="font-bold">{sold}本</p></div>
-                <div><p className="text-sumi/55">利益</p><p className="font-bold">{yen(profit)}</p></div>
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black">{lot.name}</p>
+                      <p className="mt-1 text-sm text-sumi/65">{lot.supplier} / {lot.originCountry}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge>{lot.documentStatus}</Badge>
+                      <IconButton className="h-8 w-8" title="ロットを編集" onClick={() => startLotEdit(lot)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </IconButton>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+                    <div><p className="text-sumi/55">総仕入額</p><p className="font-bold">{yen(lot.totalPurchaseCost)}</p></div>
+                    <div><p className="text-sumi/55">1本原価</p><p className="font-bold">{yen(lot.unitCost)}</p></div>
+                    <div><p className="text-sumi/55">本数</p><p className="font-bold">{lot.quantity}本</p></div>
+                    <div><p className="text-sumi/55">売却済</p><p className="font-bold">{sold}本</p></div>
+                    <div><p className="text-sumi/55">利益</p><p className="font-bold">{yen(profit)}</p></div>
+                  </div>
+                </>
+              )}
             </Card>
           );
         })}
