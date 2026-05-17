@@ -684,7 +684,7 @@ function LotsView({
             <Field label="仕入日"><Input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} /></Field>
             <Field label="仕入先"><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></Field>
             <Field label="原産国"><Input value={form.originCountry} onChange={(e) => setForm({ ...form, originCountry: e.target.value })} /></Field>
-            <Field label="総仕入額"><Input type="number" value={form.totalPurchaseCost} onChange={(e) => setForm({ ...form, totalPurchaseCost: Number(e.target.value) })} /></Field>
+            <Field label="総仕入額"><Input type="text" inputMode="numeric" pattern="[0-9]*" value={form.totalPurchaseCost} onChange={(e) => setForm({ ...form, totalPurchaseCost: Number(e.target.value.replace(/\D/g, "")) })} /></Field>
             <Field label="仕入本数"><Input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></Field>
           </div>
           <Field label="輸入経路"><Input value={form.importRoute} onChange={(e) => setForm({ ...form, importRoute: e.target.value })} /></Field>
@@ -715,7 +715,7 @@ function LotsView({
                     <Field label="仕入日"><Input type="date" value={editForm.purchaseDate} onChange={(e) => setEditForm({ ...editForm, purchaseDate: e.target.value })} /></Field>
                     <Field label="仕入先"><Input value={editForm.supplier} onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })} /></Field>
                     <Field label="原産国"><Input value={editForm.originCountry} onChange={(e) => setEditForm({ ...editForm, originCountry: e.target.value })} /></Field>
-                    <Field label="総仕入額"><Input type="number" min="0" inputMode="numeric" value={editForm.totalPurchaseCost} onChange={(e) => setEditForm({ ...editForm, totalPurchaseCost: Number(e.target.value) })} /></Field>
+                    <Field label="総仕入額"><Input type="text" inputMode="numeric" pattern="[0-9]*" value={editForm.totalPurchaseCost} onChange={(e) => setEditForm({ ...editForm, totalPurchaseCost: Number(e.target.value.replace(/\D/g, "")) })} /></Field>
                     <Field label="仕入本数">
                       <div className="grid grid-cols-[44px_1fr_44px] gap-2">
                         <IconButton
