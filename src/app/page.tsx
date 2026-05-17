@@ -27,6 +27,7 @@ import type React from "react";
 import { useMemo, useState } from "react";
 
 type Tab = "dashboard" | "garden" | "plants" | "lots" | "sale" | "expense" | "documents" | "history";
+type QuickEntryKind = "仲介手数料" | "その他費用";
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "収益", icon: BarChart3 },
@@ -177,8 +178,13 @@ export default function Home() {
         {activeTab === "dashboard" ? (
           <Dashboard
             metrics={metrics}
+            plants={data.plants}
+            lots={data.lots}
+            sales={data.sales}
             recentSaleLabel={recentSale ? `${data.plants.find((plant) => plant.id === recentSale.plantId)?.plantCode ?? ""} / ${yen(recentSale.salePrice)}` : "まだ販売なし"}
             topProfitPlants={topProfitPlants}
+            onAddExpense={actions.addExpense}
+            onUpdateCommission={actions.updateSaleCommission}
           />
         ) : null}
 
@@ -219,12 +225,22 @@ export default function Home() {
 
 function Dashboard({
   metrics,
+  plants,
+  lots,
+  sales,
   recentSaleLabel,
-  topProfitPlants
+  topProfitPlants,
+  onAddExpense,
+  onUpdateCommission
 }: {
   metrics: ReturnType<typeof getMetrics>;
+  plants: Plant[];
+  lots: ReturnType<typeof usePortfolioStore>["data"]["lots"];
+  sales: ReturnType<typeof usePortfolioStore>["data"]["sales"];
   recentSaleLabel: string;
   topProfitPlants: Plant[];
+  onAddExpense: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"];
+  onUpdateCommission: ReturnType<typeof usePortfolioStore>["actions"]["updateSaleCommission"];
 }) {
   return (
     <div className="grid gap-6">
@@ -243,6 +259,7 @@ function Dashboard({
         <MetricCard label="手数料合計" value={yen(metrics.totalCommission)} />
         <MetricCard label="その他費用合計" value={yen(metrics.totalExpenses)} />
       </div>
+      <QuickDashboardEntry plants={plants} lots={lots} sales={sales} onAddExpense={onAddExpense} onUpdateCommission={onUpdateCommission} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="p-5">
           <p className="text-sm font-bold text-leaf">最近売れた個体</p>
@@ -261,6 +278,111 @@ function Dashboard({
         </Card>
       </div>
     </div>
+  );
+}
+
+function QuickDashboardEntry({
+  plants,
+  lots,
+  sales,
+  onAddExpense,
+  onUpdateCommission
+}: {
+  plants: Plant[];
+  lots: ReturnType<typeof usePortfolioStore>["data"]["lots"];
+  sales: ReturnType<typeof usePortfolioStore>["data"]["sales"];
+  onAddExpense: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"];
+  onUpdateCommission: ReturnType<typeof usePortfolioStore>["actions"]["updateSaleCommission"];
+}) {
+  const soldPlantIds = new Set(sales.map((sale) => sale.plantId));
+  const soldPlants = plants.filter((plant) => soldPlantIds.has(plant.id));
+  const defaultPlant = soldPlants[0] ?? plants[0];
+  const [kind, setKind] = useState<QuickEntryKind>("仲介手数料");
+  const [plantId, setPlantId] = useState(defaultPlant?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("鉢");
+
+  const selectedPlant = plants.find((plant) => plant.id === plantId);
+  const targetPlants = kind === "仲介手数料" ? soldPlants : plants;
+  const disabled = !plantId || !amount || Number(amount) < 0 || (kind === "仲介手数料" && !soldPlantIds.has(plantId));
+
+  function saveQuickEntry() {
+    const numericAmount = Number(amount);
+    if (!selectedPlant || disabled) return;
+
+    if (kind === "仲介手数料") {
+      onUpdateCommission(selectedPlant.id, numericAmount);
+    } else {
+      onAddExpense({
+        date: new Date().toISOString().slice(0, 10),
+        plantId: selectedPlant.id,
+        lotId: selectedPlant.lotId || lots[0]?.id || "",
+        category,
+        amount: numericAmount,
+        memo: "ダッシュボードから入力"
+      });
+    }
+
+    setAmount("");
+  }
+
+  return (
+    <Card className="grid gap-4 p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-black text-ink">かんたん入力</p>
+          <p className="text-xs text-sumi/60">集計画面から、個体を選んで費用や手数料をすぐ反映できます。</p>
+        </div>
+        <Badge>{selectedPlant?.plantCode ?? "個体未選択"}</Badge>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-[180px_1fr_160px_160px_auto]">
+        <Field label="入力するもの">
+          <Select
+            value={kind}
+            onChange={(event) => {
+              const nextKind = event.target.value as QuickEntryKind;
+              const nextPlants = nextKind === "仲介手数料" ? soldPlants : plants;
+              setKind(nextKind);
+              setPlantId(nextPlants[0]?.id ?? "");
+            }}
+          >
+            <option>仲介手数料</option>
+            <option>その他費用</option>
+          </Select>
+        </Field>
+        <Field label="対象のパキプス">
+          <Select value={plantId} onChange={(event) => setPlantId(event.target.value)}>
+            {targetPlants.map((plant) => (
+              <option key={plant.id} value={plant.id}>
+                {plant.plantCode} / {plant.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {kind === "その他費用" ? (
+          <Field label="費用カテゴリ">
+            <Select value={category} onChange={(event) => setCategory(event.target.value)}>
+              {["鉢", "土", "薬剤", "送料", "撮影費", "管理費", "移動費", "植替え費", "その他"].map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : (
+          <div className="hidden lg:block" />
+        )}
+        <Field label="金額">
+          <Input type="number" min="0" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="例: 35000" />
+        </Field>
+        <div className="flex items-end">
+          <Button className="w-full whitespace-nowrap" disabled={disabled} onClick={saveQuickEntry}>
+            反映
+          </Button>
+        </div>
+      </div>
+      {kind === "仲介手数料" && soldPlants.length === 0 ? (
+        <p className="text-sm text-clay">販売済みの個体がまだないため、先に販売入力をしてください。</p>
+      ) : null}
+    </Card>
   );
 }
 

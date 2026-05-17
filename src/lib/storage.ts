@@ -238,6 +238,57 @@ export function usePortfolioStore() {
           ]
         }));
       },
+      updateSaleCommission(plantId: string, commissionAmount: number) {
+        const timestamp = nowIso();
+        setData((current) => {
+          const targetSale = [...current.sales].reverse().find((sale) => sale.plantId === plantId);
+          const plant = current.plants.find((item) => item.id === plantId);
+          if (!targetSale || !plant) return current;
+
+          const commissionRate = targetSale.salePrice > 0 ? (commissionAmount / targetSale.salePrice) * 100 : 0;
+          const otherCost = targetSale.shippingCost + targetSale.otherCost;
+          const netProfit = targetSale.salePrice - plant.purchaseCost - commissionAmount - otherCost;
+
+          return {
+            ...current,
+            sales: current.sales.map((sale) =>
+              sale.id === targetSale.id
+                ? {
+                    ...sale,
+                    commissionRate,
+                    commissionAmount,
+                    receivedAmount: sale.salePrice - commissionAmount - otherCost,
+                    netProfit,
+                    updatedAt: timestamp
+                  }
+                : sale
+            ),
+            plants: current.plants.map((item) =>
+              item.id === plantId
+                ? calculatePlantProfit({
+                    ...item,
+                    commissionRate,
+                    commissionAmount,
+                    otherCost,
+                    updatedAt: timestamp
+                  })
+                : item
+            ),
+            activityLogs: [
+              {
+                id: uid("activity"),
+                type: "費用",
+                plantId,
+                lotId: plant.lotId,
+                description: `${plant.plantCode} の仲介手数料を ${commissionAmount.toLocaleString("ja-JP")}円に更新`,
+                date: timestamp.slice(0, 10),
+                createdAt: timestamp
+              },
+              ...current.activityLogs
+            ]
+          };
+        });
+      },
       updateDocument(documentId: string, status: PlantDocument["status"]) {
         const timestamp = nowIso();
         setData((current) => ({
