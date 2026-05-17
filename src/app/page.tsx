@@ -28,6 +28,7 @@ import { useMemo, useState } from "react";
 
 type Tab = "dashboard" | "garden" | "plants" | "lots" | "sale" | "expense" | "documents" | "history";
 type QuickEntryKind = "仲介手数料" | "その他費用";
+type DashboardBreakdown = "inventoryValuation" | "expenses" | null;
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "収益", icon: BarChart3 },
@@ -62,6 +63,28 @@ function MetricCard({ label, value, sub, tone = "default" }: { label: string; va
       <p className="mt-2 break-words text-2xl font-black tabular-nums">{value}</p>
       {sub ? <p className={cn("mt-1 text-xs text-sumi/65", tone !== "default" && "text-bone/70")}>{sub}</p> : null}
     </Card>
+  );
+}
+
+function MetricCardButton({
+  label,
+  value,
+  sub,
+  onClick
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick} className="w-full text-left">
+      <Card className="p-4 transition hover:-translate-y-0.5 hover:border-moss">
+        <p className="text-xs font-bold text-leaf">{label}</p>
+        <p className="mt-2 break-words text-2xl font-black tabular-nums">{value}</p>
+        {sub ? <p className="mt-1 text-xs text-sumi/65">{sub}</p> : null}
+      </Card>
+    </button>
   );
 }
 
@@ -181,6 +204,7 @@ export default function Home() {
             plants={data.plants}
             lots={data.lots}
             sales={data.sales}
+            expenses={data.expenses}
             recentSaleLabel={recentSale ? `${data.plants.find((plant) => plant.id === recentSale.plantId)?.plantCode ?? ""} / ${yen(recentSale.salePrice)}` : "まだ販売なし"}
             topProfitPlants={topProfitPlants}
             onAddExpense={actions.addExpense}
@@ -211,7 +235,7 @@ export default function Home() {
 
         {activeTab === "lots" ? <LotsView data={data} onAdd={actions.addLot} /> : null}
         {activeTab === "sale" ? <SaleForm plants={availablePlants} onAdd={actions.addSale} /> : null}
-        {activeTab === "expense" ? <ExpenseForm plants={data.plants} lots={data.lots} onAdd={actions.addExpense} /> : null}
+        {activeTab === "expense" ? <ExpenseForm plants={data.plants} lots={data.lots} expenses={data.expenses} onAdd={actions.addExpense} /> : null}
         {activeTab === "documents" ? <DocumentsView data={data} onUpdate={actions.updateDocument} /> : null}
         {activeTab === "history" ? <HistoryView data={data} /> : null}
       </div>
@@ -228,6 +252,7 @@ function Dashboard({
   plants,
   lots,
   sales,
+  expenses,
   recentSaleLabel,
   topProfitPlants,
   onAddExpense,
@@ -237,11 +262,15 @@ function Dashboard({
   plants: Plant[];
   lots: ReturnType<typeof usePortfolioStore>["data"]["lots"];
   sales: ReturnType<typeof usePortfolioStore>["data"]["sales"];
+  expenses: ReturnType<typeof usePortfolioStore>["data"]["expenses"];
   recentSaleLabel: string;
   topProfitPlants: Plant[];
   onAddExpense: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"];
   onUpdateCommission: ReturnType<typeof usePortfolioStore>["actions"]["updateSaleCommission"];
 }) {
+  const [breakdown, setBreakdown] = useState<DashboardBreakdown>(null);
+  const inventoryPlants = plants.filter((plant) => ["在庫", "販売中", "売約済"].includes(plant.status));
+
   return (
     <div className="grid gap-6">
       <SectionTitle eyebrow="Dashboard" title="収益と在庫を一目で見る" />
@@ -255,10 +284,59 @@ function Dashboard({
         <MetricCard label="投資回収率" value={percent(metrics.recoveryRate)} />
         <MetricCard label="平均販売単価" value={yen(metrics.averageSalePrice)} />
         <MetricCard label="平均利益率" value={percent(metrics.averageProfitMargin)} />
-        <MetricCard label="未販売在庫の評価額" value={yen(metrics.inventoryValuation)} />
+        <MetricCardButton label="未販売在庫の評価額" value={yen(metrics.inventoryValuation)} sub="押すと内訳を表示" onClick={() => setBreakdown((current) => current === "inventoryValuation" ? null : "inventoryValuation")} />
         <MetricCard label="手数料合計" value={yen(metrics.totalCommission)} />
-        <MetricCard label="その他費用合計" value={yen(metrics.totalExpenses)} />
+        <MetricCardButton label="その他費用合計" value={yen(metrics.totalExpenses)} sub="押すと内訳を表示" onClick={() => setBreakdown((current) => current === "expenses" ? null : "expenses")} />
       </div>
+      {breakdown === "inventoryValuation" ? (
+        <Card className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-ink">未販売在庫の評価額の内訳</p>
+              <p className="text-xs text-sumi/60">在庫中の個体の想定販売価格を合計しています。</p>
+            </div>
+            <GhostButton onClick={() => setBreakdown(null)}>閉じる</GhostButton>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {inventoryPlants.map((plant) => (
+              <div key={plant.id} className="grid gap-2 rounded-md border border-stone bg-washi p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                <div>
+                  <p className="font-black">{plant.plantCode}</p>
+                  <p className="text-sm text-sumi/65">{plant.name}</p>
+                </div>
+                <StatusBadge status={plant.status} />
+                <p className="font-bold">{yen(plant.expectedSalePrice)}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+      {breakdown === "expenses" ? (
+        <Card className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-ink">その他費用合計の内訳</p>
+              <p className="text-xs text-sumi/60">どの個体に、どの費用が入っているかをここで確認できます。</p>
+            </div>
+            <GhostButton onClick={() => setBreakdown(null)}>閉じる</GhostButton>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {expenses.map((expense) => {
+              const plant = plants.find((item) => item.id === expense.plantId);
+              return (
+                <div key={expense.id} className="grid gap-2 rounded-md border border-stone bg-washi p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                  <div>
+                    <p className="font-black">{plant?.plantCode ?? "関連個体なし"} / {expense.category}</p>
+                    <p className="text-sm text-sumi/65">{expense.memo || shortDate(expense.date)}</p>
+                  </div>
+                  <p className="text-sm text-sumi/70">{shortDate(expense.date)}</p>
+                  <p className="font-bold">{yen(expense.amount)}</p>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
       <QuickDashboardEntry plants={plants} lots={lots} sales={sales} onAddExpense={onAddExpense} onUpdateCommission={onUpdateCommission} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="p-5">
@@ -583,7 +661,17 @@ function SaleForm({ plants, onAdd }: { plants: Plant[]; onAdd: ReturnType<typeof
   );
 }
 
-function ExpenseForm({ plants, lots, onAdd }: { plants: Plant[]; lots: ReturnType<typeof usePortfolioStore>["data"]["lots"]; onAdd: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"] }) {
+function ExpenseForm({
+  plants,
+  lots,
+  expenses,
+  onAdd
+}: {
+  plants: Plant[];
+  lots: ReturnType<typeof usePortfolioStore>["data"]["lots"];
+  expenses: ReturnType<typeof usePortfolioStore>["data"]["expenses"];
+  onAdd: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"];
+}) {
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), plantId: plants[0]?.id ?? "", lotId: lots[0]?.id ?? "", category: "鉢", amount: 0, memo: "" });
   return (
     <div className="grid gap-6">
@@ -598,6 +686,33 @@ function ExpenseForm({ plants, lots, onAdd }: { plants: Plant[]; lots: ReturnTyp
         </div>
         <Field label="メモ"><Textarea value={form.memo} onChange={(e) => setForm({ ...form, memo: e.target.value })} /></Field>
         <Button onClick={() => onAdd(form)}>費用を保存</Button>
+      </Card>
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-ink">登録済み費用一覧</p>
+            <p className="text-xs text-sumi/60">この一覧が、ダッシュボードの「その他費用合計」の中身です。</p>
+          </div>
+          <Badge>{expenses.length}件</Badge>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {expenses.map((expense) => {
+            const plant = plants.find((item) => item.id === expense.plantId);
+            const lot = lots.find((item) => item.id === expense.lotId);
+            return (
+              <div key={expense.id} className="grid gap-2 rounded-md border border-stone bg-washi p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <p className="font-black">{plant?.plantCode ?? "関連個体なし"} / {expense.category}</p>
+                  <p className="text-sm text-sumi/65">{lot?.name ?? "ロット未設定"} / {expense.memo || shortDate(expense.date)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-sumi/60">{shortDate(expense.date)}</p>
+                  <p className="font-bold">{yen(expense.amount)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </Card>
     </div>
   );
