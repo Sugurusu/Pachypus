@@ -15,6 +15,7 @@ import {
   Flower2,
   History,
   Leaf,
+  Minus,
   PackagePlus,
   Plus,
   ReceiptText,
@@ -715,7 +716,31 @@ function LotsView({
                     <Field label="仕入先"><Input value={editForm.supplier} onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })} /></Field>
                     <Field label="原産国"><Input value={editForm.originCountry} onChange={(e) => setEditForm({ ...editForm, originCountry: e.target.value })} /></Field>
                     <Field label="総仕入額"><Input type="number" min="0" inputMode="numeric" value={editForm.totalPurchaseCost} onChange={(e) => setEditForm({ ...editForm, totalPurchaseCost: Number(e.target.value) })} /></Field>
-                    <Field label="仕入本数"><Input type="number" min={minimumQuantity} inputMode="numeric" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })} /></Field>
+                    <Field label="仕入本数">
+                      <div className="grid grid-cols-[44px_1fr_44px] gap-2">
+                        <IconButton
+                          title="1本減らす"
+                          disabled={editForm.quantity <= minimumQuantity}
+                          onClick={() => setEditForm({ ...editForm, quantity: Math.max(minimumQuantity, editForm.quantity - 1) })}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </IconButton>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={editForm.quantity}
+                          onChange={(e) => {
+                            const numericValue = Number(e.target.value.replace(/\D/g, ""));
+                            setEditForm({ ...editForm, quantity: numericValue || minimumQuantity });
+                          }}
+                          onBlur={() => setEditForm({ ...editForm, quantity: Math.max(minimumQuantity, editForm.quantity || minimumQuantity) })}
+                        />
+                        <IconButton title="1本増やす" onClick={() => setEditForm({ ...editForm, quantity: editForm.quantity + 1 })}>
+                          <Plus className="h-4 w-4" />
+                        </IconButton>
+                      </div>
+                    </Field>
                     <Field label="書類確認"><Select value={editForm.documentStatus} onChange={(e) => setEditForm({ ...editForm, documentStatus: e.target.value as DocumentCheckStatus })}>{documentStatuses.map((status) => <option key={status}>{status}</option>)}</Select></Field>
                   </div>
                   {minimumQuantity > 1 ? <p className="text-xs text-sumi/60">販売済みが {sold}本あるため、{minimumQuantity}本未満にはできません。</p> : null}
