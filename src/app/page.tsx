@@ -11,6 +11,7 @@ import {
   BookOpenCheck,
   CircleDollarSign,
   ClipboardList,
+  Pencil,
   Flower2,
   History,
   Leaf,
@@ -18,6 +19,7 @@ import {
   Plus,
   ReceiptText,
   RotateCcw,
+  Trash2,
   Search,
   Sprout,
   Store,
@@ -209,6 +211,9 @@ export default function Home() {
             topProfitPlants={topProfitPlants}
             onAddExpense={actions.addExpense}
             onUpdateCommission={actions.updateSaleCommission}
+            onSavePlant={actions.upsertPlant}
+            onUpdateExpense={actions.updateExpense}
+            onDeleteExpense={actions.deleteExpense}
           />
         ) : null}
 
@@ -235,7 +240,7 @@ export default function Home() {
 
         {activeTab === "lots" ? <LotsView data={data} onAdd={actions.addLot} /> : null}
         {activeTab === "sale" ? <SaleForm plants={availablePlants} onAdd={actions.addSale} /> : null}
-        {activeTab === "expense" ? <ExpenseForm plants={data.plants} lots={data.lots} expenses={data.expenses} onAdd={actions.addExpense} /> : null}
+        {activeTab === "expense" ? <ExpenseForm plants={data.plants} lots={data.lots} expenses={data.expenses} onAdd={actions.addExpense} onUpdateExpense={actions.updateExpense} onDeleteExpense={actions.deleteExpense} /> : null}
         {activeTab === "documents" ? <DocumentsView data={data} onUpdate={actions.updateDocument} /> : null}
         {activeTab === "history" ? <HistoryView data={data} /> : null}
       </div>
@@ -256,7 +261,10 @@ function Dashboard({
   recentSaleLabel,
   topProfitPlants,
   onAddExpense,
-  onUpdateCommission
+  onUpdateCommission,
+  onSavePlant,
+  onUpdateExpense,
+  onDeleteExpense
 }: {
   metrics: ReturnType<typeof getMetrics>;
   plants: Plant[];
@@ -267,9 +275,16 @@ function Dashboard({
   topProfitPlants: Plant[];
   onAddExpense: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"];
   onUpdateCommission: ReturnType<typeof usePortfolioStore>["actions"]["updateSaleCommission"];
+  onSavePlant: ReturnType<typeof usePortfolioStore>["actions"]["upsertPlant"];
+  onUpdateExpense: ReturnType<typeof usePortfolioStore>["actions"]["updateExpense"];
+  onDeleteExpense: ReturnType<typeof usePortfolioStore>["actions"]["deleteExpense"];
 }) {
   const [breakdown, setBreakdown] = useState<DashboardBreakdown>(null);
   const inventoryPlants = plants.filter((plant) => ["在庫", "販売中", "売約済"].includes(plant.status));
+  const [editingInventoryPlantId, setEditingInventoryPlantId] = useState("");
+  const [editingInventoryValue, setEditingInventoryValue] = useState("");
+  const [editingExpenseId, setEditingExpenseId] = useState("");
+  const [editingExpenseAmount, setEditingExpenseAmount] = useState("");
 
   return (
     <div className="grid gap-6">
@@ -304,8 +319,44 @@ function Dashboard({
                   <p className="font-black">{plant.plantCode}</p>
                   <p className="text-sm text-sumi/65">{plant.name}</p>
                 </div>
-                <StatusBadge status={plant.status} />
-                <p className="font-bold">{yen(plant.expectedSalePrice)}</p>
+                {editingInventoryPlantId === plant.id ? (
+                  <Input type="number" inputMode="numeric" value={editingInventoryValue} onChange={(event) => setEditingInventoryValue(event.target.value)} />
+                ) : (
+                  <StatusBadge status={plant.status} />
+                )}
+                <div className="flex items-center justify-end gap-2">
+                  {editingInventoryPlantId === plant.id ? (
+                    <>
+                      <GhostButton
+                        className="px-3 text-xs"
+                        onClick={() => {
+                          onSavePlant({ ...plant, expectedSalePrice: Number(editingInventoryValue) || 0 });
+                          setEditingInventoryPlantId("");
+                          setEditingInventoryValue("");
+                        }}
+                      >
+                        保存
+                      </GhostButton>
+                      <GhostButton className="px-3 text-xs" onClick={() => { setEditingInventoryPlantId(""); setEditingInventoryValue(""); }}>
+                        戻す
+                      </GhostButton>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-bold">{yen(plant.expectedSalePrice)}</p>
+                      <IconButton
+                        className="h-8 w-8"
+                        title="想定販売価格を編集"
+                        onClick={() => {
+                          setEditingInventoryPlantId(plant.id);
+                          setEditingInventoryValue(String(plant.expectedSalePrice));
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </IconButton>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -330,7 +381,33 @@ function Dashboard({
                     <p className="text-sm text-sumi/65">{expense.memo || shortDate(expense.date)}</p>
                   </div>
                   <p className="text-sm text-sumi/70">{shortDate(expense.date)}</p>
-                  <p className="font-bold">{yen(expense.amount)}</p>
+                  <div className="flex items-center justify-end gap-2">
+                    {editingExpenseId === expense.id ? (
+                      <>
+                        <Input className="w-28" type="number" inputMode="numeric" value={editingExpenseAmount} onChange={(event) => setEditingExpenseAmount(event.target.value)} />
+                        <GhostButton
+                          className="px-3 text-xs"
+                          onClick={() => {
+                            onUpdateExpense(expense.id, { ...expense, amount: Number(editingExpenseAmount) || 0 });
+                            setEditingExpenseId("");
+                            setEditingExpenseAmount("");
+                          }}
+                        >
+                          保存
+                        </GhostButton>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-bold">{yen(expense.amount)}</p>
+                        <IconButton className="h-8 w-8" title="費用を編集" onClick={() => { setEditingExpenseId(expense.id); setEditingExpenseAmount(String(expense.amount)); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </IconButton>
+                        <IconButton className="h-8 w-8" title="費用を削除" onClick={() => onDeleteExpense(expense.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </IconButton>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -665,14 +742,20 @@ function ExpenseForm({
   plants,
   lots,
   expenses,
-  onAdd
+  onAdd,
+  onUpdateExpense,
+  onDeleteExpense
 }: {
   plants: Plant[];
   lots: ReturnType<typeof usePortfolioStore>["data"]["lots"];
   expenses: ReturnType<typeof usePortfolioStore>["data"]["expenses"];
   onAdd: ReturnType<typeof usePortfolioStore>["actions"]["addExpense"];
+  onUpdateExpense: ReturnType<typeof usePortfolioStore>["actions"]["updateExpense"];
+  onDeleteExpense: ReturnType<typeof usePortfolioStore>["actions"]["deleteExpense"];
 }) {
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), plantId: plants[0]?.id ?? "", lotId: lots[0]?.id ?? "", category: "鉢", amount: 0, memo: "" });
+  const [editingExpenseId, setEditingExpenseId] = useState("");
+  const [editingAmount, setEditingAmount] = useState("");
   return (
     <div className="grid gap-6">
       <SectionTitle eyebrow="Expenses" title="費用入力" />
@@ -705,9 +788,35 @@ function ExpenseForm({
                   <p className="font-black">{plant?.plantCode ?? "関連個体なし"} / {expense.category}</p>
                   <p className="text-sm text-sumi/65">{lot?.name ?? "ロット未設定"} / {expense.memo || shortDate(expense.date)}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-sumi/60">{shortDate(expense.date)}</p>
-                  <p className="font-bold">{yen(expense.amount)}</p>
+                <div className="flex items-center justify-end gap-2">
+                  {editingExpenseId === expense.id ? (
+                    <>
+                      <Input className="w-28" type="number" inputMode="numeric" value={editingAmount} onChange={(event) => setEditingAmount(event.target.value)} />
+                      <GhostButton
+                        className="px-3 text-xs"
+                        onClick={() => {
+                          onUpdateExpense(expense.id, { ...expense, amount: Number(editingAmount) || 0 });
+                          setEditingExpenseId("");
+                          setEditingAmount("");
+                        }}
+                      >
+                        保存
+                      </GhostButton>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-right">
+                        <p className="text-sm text-sumi/60">{shortDate(expense.date)}</p>
+                        <p className="font-bold">{yen(expense.amount)}</p>
+                      </div>
+                      <IconButton className="h-8 w-8" title="費用を編集" onClick={() => { setEditingExpenseId(expense.id); setEditingAmount(String(expense.amount)); }}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </IconButton>
+                      <IconButton className="h-8 w-8" title="費用を削除" onClick={() => onDeleteExpense(expense.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </IconButton>
+                    </>
+                  )}
                 </div>
               </div>
             );

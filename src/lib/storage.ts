@@ -238,6 +238,57 @@ export function usePortfolioStore() {
           ]
         }));
       },
+      updateExpense(expenseId: string, input: Omit<Expense, "id" | "createdAt" | "updatedAt">) {
+        const timestamp = nowIso();
+        setData((current) => ({
+          ...current,
+          expenses: current.expenses.map((expense) =>
+            expense.id === expenseId
+              ? {
+                  ...expense,
+                  ...input,
+                  updatedAt: timestamp
+                }
+              : expense
+          ),
+          activityLogs: [
+            {
+              id: uid("activity"),
+              type: "費用",
+              plantId: input.plantId,
+              lotId: input.lotId,
+              description: `${input.category} ${input.amount.toLocaleString("ja-JP")}円を更新`,
+              date: input.date,
+              createdAt: timestamp
+            },
+            ...current.activityLogs
+          ]
+        }));
+      },
+      deleteExpense(expenseId: string) {
+        const timestamp = nowIso();
+        setData((current) => {
+          const target = current.expenses.find((expense) => expense.id === expenseId);
+          if (!target) return current;
+
+          return {
+            ...current,
+            expenses: current.expenses.filter((expense) => expense.id !== expenseId),
+            activityLogs: [
+              {
+                id: uid("activity"),
+                type: "費用",
+                plantId: target.plantId,
+                lotId: target.lotId,
+                description: `${target.category} ${target.amount.toLocaleString("ja-JP")}円を削除`,
+                date: timestamp.slice(0, 10),
+                createdAt: timestamp
+              },
+              ...current.activityLogs
+            ]
+          };
+        });
+      },
       updateSaleCommission(plantId: string, commissionAmount: number) {
         const timestamp = nowIso();
         setData((current) => {
